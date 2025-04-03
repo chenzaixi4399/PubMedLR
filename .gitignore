@@ -1,0 +1,27 @@
+/venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables file
+.env
+
+# Logs and databases
+logs/
+*.log
+*.sql
+*.sqlite3
+
+# Virtual environment
+venv/
+.venv/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+
+# IDE-specific files
+.idea/
+.vscode/
