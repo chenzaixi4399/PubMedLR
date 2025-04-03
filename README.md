@@ -1,4 +1,4 @@
-## 1.pip -r requirements.txt \
+## 1.pip -r requirements.txt 
 ## 2.new .env in root add the following  
 #### DATABASE_URL=mysql+pymysql://user:password@localhost:3306/db_name #your_mysql_user_password_dbname 
 #### SECRET_KEY=xxxxxxx #your_secret_key_for_password_hashing 
