@@ -5,6 +5,6 @@
 #### ALGORITHM=HS256
 #### ACCESS_TOKEN_EXPIRE_MINUTES=300
 ## 3.run create_table.py 
-## 4.run fetch_pubmed_data 
+## 4.run fetch_pubmed_data.py
 ## 5.in root uvicorn main:app --reload 
 ## 6.on http://127.0.0.1:8000:docs query interface
