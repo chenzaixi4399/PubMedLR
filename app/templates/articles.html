@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Articles</title>
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 设置表格布局为固定，避免水平滚动条 */
+        .table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        /* 限制每行的高度 */
+        .table tbody td {
+            max-height: 60px; /* 设置最大高度 */
+            overflow: hidden; /* 隐藏超出部分 */
+            white-space: nowrap; /* 禁止换行 */
+            text-overflow: ellipsis; /* 超出部分显示省略号 */
+            position: relative;
+        }
+
+        /* 确保表格在小屏幕上不会产生水平滚动条 */
+        .table-responsive {
+            overflow-x: hidden; /* 禁用水平滚动条 */
+        }
+
+        /* 可选：美化 Tooltip */
+        .tooltip-inner {
+            max-width: 300px; /* 控制tooltip的最大宽度 */
+            white-space: normal; /* 允许换行 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 搜索和筛选表单 -->
+        <form id="searchForm" class="mb-4">
+            <div class="input-group">
+                <input type="text" class="form-control" id="search" placeholder="Search by title or abstract">
+                <button class="btn btn-outline-secondary" type="submit">Search</button>
+            </div>
+        </form>
+        <form id="filterForm" class="mb-4">
+            <div class="input-group">
+                <select class="form-select" id="reviewStatus">
+                    <option value="">All</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+                <button class="btn btn-outline-secondary" type="submit">Filter</button>
+            </div>
+        </form>
+        <!-- 文章表格 -->
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>PMID</th>
+                        <th>Title</th>
+                        <th>DOI</th>
+                        <th>Publication Date</th>
+                        <th>Journal Name</th>
+                        <th>Authors</th>
+                        <th>Abstract</th>
+                        <th>Article URL</th>
+                        <th>Review Status</th>
+                        <th>Review Reason</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="articlesTableBody">
+                    <!-- 动态加载文章数据 -->
+                </tbody>
+            </table>
+        </div>
+        <!-- 分页导航 -->
+        <nav aria-label="Page navigation example">
+            <ul class="pagination" id="pagination"></ul>
+        </nav>
+    </div>
+
+    <!-- 模态框模板 -->
+    <div class="modal fade" id="reviewModal" tabindex="-1" role="dialog" aria-labelledby="reviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reviewModalLabel">Review Article</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="reviewForm">
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="reason">Reason</label>
+                            <textarea class="form-control" id="reason" name="reason" rows="3"></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="submitReview()">Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.staticfile.org/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script>
+        // 获取 JWT Token
+        const token = localStorage.getItem('token');
+
+        // 检查是否登录
+        if (!token) {
+            alert('You are not logged in. Please log in first.');
+            window.location.href = '/login';
+        }
+
+        // 当前选中的文章ID
+        let currentArticleId = null;
+
+        // 加载文章列表
+        async function loadArticles(page = 1, search = '', reviewStatus = '') {
+            try {
+                const response = await fetch(`/article/list?page=${page}&search=${search}&review_status=${reviewStatus}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    renderArticles(data.articles, data.page, data.total_pages);
+                } else {
+                    const errorData = await response.json();
+                    if (response.status === 401) {
+                        alert('Your session has expired. Please log in again.');
+                        localStorage.removeItem('token'); // 清除无效的 Token
+                        window.location.href = '/login';
+                    } else {
+                        alert('Failed to fetch articles: ' + errorData.detail);
+                    }
+                }
+            } catch (error) {
+                console.error('An error occurred during fetching articles:', error);
+                alert('Failed to fetch articles. Please try again.');
+            }
+        }
+
+        // 渲染文章列表
+        function renderArticles(articles, currentPage, totalPages) {
+            const tableBody = document.getElementById('articlesTableBody');
+            tableBody.innerHTML = ''; // 清空表格内容
+
+            articles.forEach(article => {
+                const row = document.createElement('tr');
+
+                // 填充表格数据
+                row.innerHTML = `
+                    <td>${article.pmid}</td>
+                    <td title="${article.title}">${truncateText(article.title, 20)}</td>
+                    <td>${article.doi}</td>
+                    <td>${article.pub_date}</td>
+                    <td title="${article.journal_name}">${truncateText(article.journal_name, 20)}</td>
+                    <td title="${article.authors}">${truncateText(article.authors, 20)}</td>
+                    <td title="${article.abstract}">${truncateText(article.abstract, 30)}</td>
+                    <td><a href="${article.article_url}" target="_blank">Link</a></td>
+                    <td>${article.review_status}</td>
+                    <td>${article.review_reason || '-'}</td>
+                    <td>
+                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#reviewModal"
+                                onclick="setCurrentArticleId(${article.id})">
+                            Review
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // 渲染分页导航
+            renderPagination(currentPage, totalPages);
+        }
+
+        // 截断文本并添加省略号
+        function truncateText(text, maxLength) {
+            if (text.length > maxLength) {
+                return text.substring(0, maxLength) + '...';
+            }
+            return text;
+        }
+
+        // 设置当前选中的文章ID
+        function setCurrentArticleId(articleId) {
+            currentArticleId = articleId;
+            console.log('Selected Article ID:', currentArticleId); // 调试信息
+        }
+
+        // 提交审核
+        function submitReview() {
+            if (!currentArticleId) {
+                alert('Please select an article to review.');
+                return;
+            }
+
+            const status = document.getElementById('status').value;
+            const reason = document.getElementById('reason').value;
+
+            if (status === 'rejected' && !reason) {
+                alert('Review reason is required for rejected articles.');
+                return;
+            }
+
+            fetch(`/article/review/${currentArticleId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status, reason })
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert('Article reviewed successfully.');
+                    $('#reviewModal').modal('hide'); // 关闭模态框
+                    loadArticles(); // 重新加载文章列表
+                } else {
+                    response.json().then(data => {
+                        alert('Failed to review article: ' + data.detail);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('An error occurred during review:', error);
+                alert('Failed to review article. Please try again.');
+            });
+        }
+
+        // 渲染分页导航
+        function renderPagination(currentPage, totalPages) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            const firstPageLink = document.createElement('li');
+            firstPageLink.className = 'page-item';
+            firstPageLink.innerHTML = `<a class="page-link" href="#">First</a>`;
+            firstPageLink.addEventListener('click', () => loadArticles(1));
+            pagination.appendChild(firstPageLink);
+
+            if (currentPage > 1) {
+                const prevPageLink = document.createElement('li');
+                prevPageLink.className = 'page-item';
+                prevPageLink.innerHTML = `<a class="page-link" href="#">Previous</a>`;
+                prevPageLink.addEventListener('click', () => loadArticles(currentPage - 1));
+                pagination.appendChild(prevPageLink);
+            }
+
+            if (currentPage < totalPages) {
+                const nextPageLink = document.createElement('li');
+                nextPageLink.className = 'page-item';
+                nextPageLink.innerHTML = `<a class="page-link" href="#">Next</a>`;
+                nextPageLink.addEventListener('click', () => loadArticles(currentPage + 1));
+                pagination.appendChild(nextPageLink);
+            }
+
+            const lastPageLink = document.createElement('li');
+            lastPageLink.className = 'page-item';
+            lastPageLink.innerHTML = `<a class="page-link" href="#">Last</a>`;
+            lastPageLink.addEventListener('click', () => loadArticles(totalPages));
+            pagination.appendChild(lastPageLink);
+        }
+
+        // 搜索功能
+        document.getElementById('searchForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const searchValue = document.getElementById('search').value;
+            loadArticles(1, searchValue);
+        });
+
+        // 筛选功能
+        document.getElementById('filterForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const reviewStatus = document.getElementById('reviewStatus').value;
+            loadArticles(1, '', reviewStatus);
+        });
+
+        // 初始化加载文章列表
+        loadArticles();
+    </script>
+</body>
+</html>

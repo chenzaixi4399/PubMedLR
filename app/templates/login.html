@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-4">Login</h1>
+        <form id="loginForm" class="mt-4">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+        <p class="mt-4">Don't have an account? <a href="/register">Register here</a>.</p>
+    </div>
+
+    <script>
+        // 检查是否已经登录
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                // 如果存在有效的 Token，直接跳转到文章列表页
+                window.location.href = '/articles';
+            }
+        };
+
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault(); // 阻止表单默认提交行为
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/auth/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'password',
+                        username: username,
+                        password: password
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const token = data.access_token;
+
+                    // 将 JWT 保存到 localStorage
+                    localStorage.setItem('token', token);
+
+                    // 登录成功后跳转到文章列表页
+                    window.location.href = '/articles';
+                } else {
+                    const errorData = await response.json();
+                    alert('Login failed: ' + errorData.detail);
+                }
+            } catch (error) {
+                console.error('An error occurred during login:', error);
+                alert('Login failed. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
